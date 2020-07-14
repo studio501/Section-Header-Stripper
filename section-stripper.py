@@ -58,13 +58,17 @@ if __name__ == "__main__":
 	(inputfile, outputfile) = get_files()
 
 	header_ident = BetterStruct([
-		("4s", "magic"),
-		("b", "arch"),
-		("b", "endianness"),
-		("b", "version"),
-		("b", "abi"),
-		("b", "abi_version"),
-		("7x", None),
+		("4s", "magic"), 				# 0x00 ~ 0x03 = 4bytes
+		("b", "arch"), 					# 0x04 ~ 0x05 = 1byte
+		("b", "endianness"),			# 0x05 ~ 0x06 = 1byte
+		# 可以随意修改 0x06 - 0x0F
+		("b", "version"),				# 0x06 ~ 0x07 = 1byte
+		("b", "abi"),					# 0x07 ~ 0x08 = 1byte
+		("b", "abi_version"),			# 0x08 ~ 0x09 = 1byte
+
+		# split 7 bytes
+		("7s", "appdesc"), 				# 0x09 ~ 0x0F = 7bytes
+		# ("7x", None),					# 0x09 ~ 0x0F = 7bytes
 	], True)
 
 	header_ident_bytes = inputfile.read(header_ident.size)
@@ -78,22 +82,27 @@ if __name__ == "__main__":
 		print("Only 64-bit ELF files are currently supported.", file=sys.stderr)
 		exit(1)
 
+	header_ident.fields.version = 6
+	header_ident.fields.abi = 6
+	header_ident.fields.abi_version = 6
+	header_ident.fields.appdesc = b'COK^1&G'
+
 	file_contents = header_ident.pack() + inputfile.read(-1)
 
 	header = BetterStruct([
-		("H", "type"),
-		("H", "machine"),
-		("L", "version"),
-		("Q", "entry"),
-		("Q", "phoff"),
-		("Q", "shoff"),
-		("L", "flags"),
-		("H", "ehsize"),
-		("H", "phentsize"),
-		("H", "phnum"),
-		("H", "shentsize"),
-		("H", "shnum"),
-		("H", "shstrndx"),
+		("H", "type"),						# 2bytes
+		("H", "machine"),					# 2bytes
+		("L", "version"),					# 4bytes
+		("Q", "entry"),						# 8bytes
+		("Q", "phoff"),						# 8bytes
+		("Q", "shoff"),						# 8bytes
+		("L", "flags"),						# 4bytes
+		("H", "ehsize"),					# 2bytes
+		("H", "phentsize"),					# 2bytes
+		("H", "phnum"),						# 2bytes
+		("H", "shentsize"),					# 2bytes
+		("H", "shnum"),						# 2bytes
+		("H", "shstrndx"),					# 2bytes
 	], header_ident.fields.endianness == 1)
 
 	header.unpack(file_contents[header_ident.size:])
@@ -103,10 +112,14 @@ if __name__ == "__main__":
 	shnum = header.fields.shnum
 	shstrndx = header.fields.shstrndx
 
-	header.fields.shoff = 0
-	header.fields.shentsize = 0
-	header.fields.shnum = 0
-	header.fields.shstrndx = 0
+	header.fields.entry = 0x666f
+	header.fields.flags = 0xffff
+	header.fields.ehsize = 0x06
+	header.fields.phentsize = 0x08
+	# header.fields.shoff = 0
+	# header.fields.shentsize = 0
+	# header.fields.shnum = 0
+	# header.fields.shstrndx = 0
 
 	end_of_section_header = shoff + shentsize*shnum
 
@@ -143,7 +156,8 @@ if __name__ == "__main__":
 		exit(1)
 
 	outputfile.seek(0)
-	outputfile.write(file_contents[:shstr_entry.fields.offset])
+	# outputfile.write(file_contents[:shstr_entry.fields.offset])
+	outputfile.write(file_contents[:end_of_section_header])
 	outputfile.truncate()
 
 	inputfile.close()
